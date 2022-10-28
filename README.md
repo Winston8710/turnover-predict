@@ -18,7 +18,7 @@ turnover predict
 ![image](https://user-images.githubusercontent.com/101661953/198520607-50601f08-bb5f-49ec-8b18-d50690246f25.png)
 
 ## 06. 成品發表
-![image](https://user-images.githubusercontent.com/101661953/198523928-a2790b21-2e18-4a41-9146-19d7dda53a83.png)
+![圖片1](https://user-images.githubusercontent.com/101661953/198523999-76b9d01d-d058-4b8a-b40a-d2d04f81f867.png)
 
 
 
