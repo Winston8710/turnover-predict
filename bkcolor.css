@@ -1,0 +1,33 @@
+.my-1 {
+  background-color: #CBD1D4;
+}
+
+.my-2 {
+  background-color: #E1E2DD;
+}
+
+.my-3 {
+  background-color: #F8F9FB;
+}
+
+.leave_table {
+  width: 70%;
+
+}
+
+.value {
+  display: flex;
+  justify-content: center; 
+  align-items: center;
+
+}
+
+.navbar-inverse {
+    background-color: #788A95;
+    border-color: #788A95;
+    
+}
+
+.logo{
+  margin-top: 2px;
+}
