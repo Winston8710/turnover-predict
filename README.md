@@ -1,4 +1,4 @@
-# turnover-predict
+# 人才管理系統 turnover-predict
 turnover predict
 ## 01. 系統開發目的
 -離職率的上漲將導致公司內部的人才流失。
