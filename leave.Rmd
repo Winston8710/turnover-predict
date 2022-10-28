@@ -1,0 +1,297 @@
+---
+title: "離職預測介面"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    css: bkcolor.css
+    
+runtime: shiny
+---
+
+```{r}
+pacman::p_load(shinyWidgets,shinythemes,flexdashboard,DT)
+pacman::p_load(dplyr, stringr, reshape2, highcharter, RColorBrewer,ggplot2,plotly,data.table)
+
+
+load("X2021_leave.rdata")
+# X2021_leave = X2021_leave %>% select(-X1)
+# save(X2021_leave,file = "X2021_leave.rdata")
+# X2021_leave = X2021_leave %>% mutate(bereau = substring(DEPARTMENT_ID_LAST,1,3))
+
+# X2021_leave$DEPARTMENT_ID_LAST = as.character(X2021_leave$DEPARTMENT_ID_LAST)
+
+# load("dep_use_proj.rdata")
+# dep_use：部門平均專案使用率use_avg
+# dep_proj：部門平均當月做幾個專案proj_avg
+
+
+# 需和可用之才名單比對，標出離職名單中屬於可用之才的員工編號，並在中間照片的部分有做出區分
+
+X2021_leave = X2021_leave %>% 
+  rename(處級代號 = bereau,
+         部門代號 = DEPARTMENT_ID_LAST,
+         月份 = DATAMONTH_LAST,
+         員工編號 = EMPLOYEE_ID,
+         在職月數 = LIFETIME_MONTH_LAST,
+         個人專案使用率 =  EMP_PROJ_UTILISATION,
+         個人執行專案數 =  NUM_PROJ_EMP,
+         )
+
+a = X2021_leave %>%  group_by(處級代號,部門代號,月份) %>% summarise(人數 = n()) %>% filter(月份 == 11)
+
+```
+
+Row {data-height=200}
+-------------------------------------
+### {.my-1}
+```{r}
+pickerInput(
+   "ber",
+   label = "選擇處級代號",
+   choices = sort(unique(X2021_leave$處級代號[X2021_leave$處級代號%in%a$處級代號])),
+   selected = sort(unique(X2021_leave$處級代號))[1],
+   options = list(`actions-box` = TRUE,
+                  mobile = T),
+)
+```
+
+```{r}
+# input = list(ber = "114",dep = "114614")
+L <- reactive({
+  X2021_leave %>% 
+    filter(處級代號 %in% input$ber) %>% 
+    group_by(部門代號,月份) %>% 
+    summarise(人數 = n()) %>% 
+    ungroup() %>% 
+    mutate(key = row_number()) -> z.L
+  # merge(a,X2021_leave$n,by="bereau",by)
+})
+# L = function() z.L
+
+# L_value <- reactive({
+#   L() %>% 
+#     filter(bereau %in% input$ber) %>% 
+#     group_by(DEPARTMENT_ID_LAST) %>% 
+#     filter(DATAMONTH_LAST == 11) %>% 
+#     summarise(n = n()) %>% 
+#     mutate(key = row_number())-> z.L_value
+# })
+# # L_value = function() z.L_value
+```
+
+###  {.my-1}
+```{r}
+renderPlotly({
+  g <- L() %>% 
+    filter(月份 == 11) %>% 
+    ggplot(aes(x = 部門代號,y = 人數,key = key)) +
+    geom_bar(stat ="identity",aes(text = paste("人數：",人數))) +
+    ggtitle("預測離職人數長條圖") +
+    xlab("部門代號") +
+    ylab("預測離職人數")
+    
+     ggplotly(g) %>% layout(plot_bgcolor='#CBD1D4', paper_bgcolor='#CBD1D4')
+  
+  # else if (bar$key =="NA"){
+  #   print("本月無預測離職人數")
+  # }
+
+})
+```
+
+###  {.value}
+<div style="font-size:140px">
+```{r} 
+renderValueBox({
+  valueBox(
+    paste(sum(L()$人數[L()$月份==11]),"/",unique(X2021_leave$n[X2021_leave$處級代號 == input$ber])),
+    #sum(L()$n[L()$DATAMONTH_LAST==11]),
+    paste('此處級預測離職人數/處級總人數'),
+    color = "#986E5E",
+    
+    
+  )
+})
+```
+</div>
+
+```{r}
+Dep <- eventReactive(event_data("plotly_click"),{
+  i <- event_data("plotly_click")$key[1] %>% as.integer()
+  # i = 3 #133 # 171, 133, 46
+  dx <- L()$部門代號[i]
+  list(
+    df = X2021_leave %>% 
+      filter(部門代號 == dx) %>% 
+      group_by(月份) %>%
+      mutate(部門平均專案使用率 = mean(個人專案使用率),
+             部門平均執行專案數=mean(個人執行專案數)) %>% 
+      ungroup()
+  ) -> z.Dep
+})
+# Dep = function() {z.Dep}
+```
+
+Row 
+-------------------------------------
+###  {.my-2}
+```{r}
+# renderImage({ list(src = "images.jpeg",height = "100px")})
+PHOTO <- reactive({
+  Dep()$df %>% 
+    mutate(大頭照 = case_when( (在職月數 >= 36 | GRADE_DISTINCT_12M >= 1) & (COR_SCORE_HIGH >= 1 | PM2_SCORE_HIGH >= 1) ~ '<img src="https://cdn2.ettoday.net/images/1457/1457773.jpg" height="52" style="border:2px red dashed;"></img>',
+                              TRUE  ~ '<img src="https://cdn2.ettoday.net/images/1457/1457773.jpg" height="52"></img>',
+                              )) %>%
+    select(員工編號,大頭照,在職月數,月份) %>%
+    filter(月份 == 11)-> z.photo
+  # data.frame(
+  #   photo = c('<img src="大頭照.jpeg" height="45"></img>',
+  #             '<img src="大頭照.jpeg" height="52"></img>',
+  #             '<img src="大頭照.jpeg" height="52"></img>',
+  #             '<img src="大頭照.jpeg" height="152"></img>')
+  # )
+})
+# PHOTO = function() {z.photo}
+
+
+
+renderDataTable({
+  #if(input$dep){
+    datatable(
+      PHOTO() %>% select(-在職月數,-月份),
+      escape = FALSE,
+      rownames = FALSE,
+      options = list(dom='t',
+                     scrollY = '300px')) 
+  # %>%
+  #     formatStyle("員工編號",backgroundColor = styleInterval(PHOTO()$LIFETIME_MONTH_LAST > 36, c('white','red')))
+  #}  
+})
+```
+
+<!-- <div style="font-size:75%; weight:30%; overflow-y:scroll;"> -->
+###  {.my-2}
+```{r}
+
+radioButtons(
+   inputId = "dep",
+   label = "選擇欲查看之員工編號", 
+   choices = "尚未選擇部門代號"
+)
+
+observeEvent(
+  event_data("plotly_click"),
+  updateRadioButtons(
+    session = session,
+    inputId = "dep",
+    label = "選擇員工編號",
+    choices = unique(PHOTO()$員工編號)
+    
+    # status = "primary",
+  )
+)
+
+```
+<!-- </div> -->
+
+```{r}
+Le <- reactive({
+  
+  Dep()$df %>% 
+    filter(員工編號 %in% input$dep)-> z.Le
+  
+  
+})
+# Le = function() {z.Le}
+```
+
+
+Row {data-height=300 .my-3}
+-------------------------------------
+
+###  {.value .my-3}
+```{r}
+renderValueBox({
+  valueBox(max(Le()$在職月數),
+           paste("在職月數"),
+           color = "#788A95",
+           
+  )
+})
+```
+
+###  {.value .my-3}
+```{r}
+renderValueBox({
+  valueBox(max(Le()$GRADE_DISTINCT_12M),
+           paste("12個月內升職等紀錄"),
+           color = "#788A95",
+  )
+})
+```
+
+###  {.value .my-3}
+```{r}
+renderValueBox({
+  
+  valueBox(max(Le()$COR_SCORE_HIGH),
+           paste0("「核心職能」分數高"),
+           color = "#788A95",
+  )
+})
+```
+
+###  {.value .my-3}
+```{r}
+renderValueBox({
+  valueBox(max(Le()$PM2_SCORE_HIGH),
+           paste0("「人員管理」分數高"),
+           color = "#788A95",
+  )
+})
+```
+
+
+###  {.my-3 }
+```{r}
+renderPlotly({
+  Le() %>% 
+    ggplot() +
+    geom_line(aes(x = 月份,y = 個人專案使用率,group = 1,color="個人專案使用率")) +
+    geom_point(aes(x = 月份,y = 個人專案使用率,group = 1,color="個人專案使用率")) +
+    geom_line(aes(x = 月份,y = 部門平均專案使用率,group = 1,color="部門平均專案使用率")) +
+    geom_point(aes(x = 月份,y = 部門平均專案使用率,group = 1,color="部門平均專案使用率")) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5)) + # 不顯示圖例說明
+    ggtitle("當月專案使用率折線圖") +
+    theme(plot.title = element_text(size=12),axis.text = element_text(size=5)) +
+    xlab("月份") +
+    ylab("當月專案使用率")
+})
+```
+
+### {.my-3 }
+```{r}
+renderPlotly({
+  Le() %>% 
+    rename(個人 = 個人執行專案數,
+           部門平均 = 部門平均執行專案數) %>% 
+    ggplot() +
+    geom_line(aes(x = 月份,y = 個人,group = 1,color="個人")) +
+    geom_point(aes(x = 月份,y = 個人,group = 1,color="個人")) +
+    geom_line(aes(x = 月份,y = 部門平均,group = 1,color="部門平均")) +
+    geom_point(aes(x = 月份,y = 部門平均,group = 1,color="部門平均")) +
+    # theme(legend.position = "none") + # 不顯示圖例說明
+    ggtitle("當月執行專案數折線圖") +
+    theme(plot.title = element_text(size=12),axis.text = element_text(size=5)) +
+    theme(legend.title = element_text(size = 8), 
+          legend.text = element_text(size = 6),
+          legend.background = element_blank(),
+          plot.title = element_text(hjust = 0.5)) +
+    xlab("月份") +
+    ylab("當月執行專案數")
+})
+```
+
+
+

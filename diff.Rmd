@@ -1,0 +1,430 @@
+---
+title: "Re-Sign 工作狀態異常介面"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    css: bkcolor.css
+    # logo: re_sign1.png
+    # favicon: re_sign1.png
+
+runtime: shiny
+---
+```{r setup, include=FALSE}
+pacman::p_load(shinyWidgets,shinythemes,flexdashboard,DT)
+pacman::p_load(dplyr, stringr, reshape2, highcharter, RColorBrewer,ggplot2,plotly,data.table)
+
+
+load("sum_empErr.rdata")
+# load("ttt.rdata")re_sign.jpg
+
+# sum_empErr = sum_empErr %>% mutate(bereau = substring(DEPARTMENT_ID_LAST,1,3))
+# # save(sum_empErr,file = "sum_empErr.rdata")
+# sum_empErr = sum_empErr %>% select(-X1)
+
+# sum_empErr <- mutate_at(sum_empErr,'is_ot', ~replace(., is.na(.), '0'))
+# sum_empErr <- mutate_at(sum_empErr,'is_abs', ~replace(., is.na(.), '0'))
+# sum_empErr <- mutate_at(sum_empErr,'is_late', ~replace(., is.na(.), '0'))
+# sum_empErr <- mutate_at(sum_empErr,'is_nonProjectHigh', ~replace(., is.na(.), '0'))
+
+sum_empErr = sum_empErr %>%
+    rename( 員工編號 = EMPLOYEE_ID,
+            部門代號 = DEPARTMENT_ID_LAST,
+            年份 = DATAYEAR_LAST,
+            月份 = DATAMONTH_LAST,
+            處級代號 = bereau,
+            個人總加班時數 = TOTAL_OT,
+            個人總請假時數 = TOTAL_ABS,
+            個人遲到次數 = NUM_COUNT_CLOCK_LATE,
+            個人非專案使用率 = RATIO_NONPROJ_HOURS_EMP,
+            同部門總請假時數_Q4 = depAbs_Q4,
+            全公司總請假時數_Q4 = Abs_Q4,
+            是否請假異常 = is_abs,
+            同部門非專案使用率_Q4 = depNonpro_Q4,
+            全公司非專案使用率_Q4 = Nonpro_Q4,
+            是否非專案使用率異常 = is_nonProjectHigh,
+            同部門總加班時數_Q4 = depOt_Q4,
+            全公司總加班時數_Q4 = Ot_Q4,
+            是否加班異常 = is_ot,
+            同部門平均遲到次數 = avg_late,
+            同部門總遲到次數 = depLate_sum,
+            是否遲到異常 = is_late
+            ) 
+
+late = sum_empErr %>% 
+  select(部門代號,員工編號,年份,月份,個人遲到次數,同部門平均遲到次數,是否遲到異常)
+abs = sum_empErr %>% 
+  select(部門代號,員工編號,年份,月份,個人總請假時數,同部門總請假時數_Q4,全公司總請假時數_Q4,是否請假異常)
+```
+
+Row { data-height=150}
+-------------------------------------
+### 
+```{r}
+pickerInput(
+   "ber",
+   choices = sort(unique(sum_empErr$處級代號)),
+   # selected = unique(sum_empErr$bereau)[1],
+   options = list(`actions-box` = TRUE,
+                  `live-search`=TRUE,
+                  mobile = T),
+)
+```
+
+### 
+```{r}
+renderTable({
+    Dep()$df %>%
+      select(部門代號) %>%
+      unique()
+  })
+```
+
+### 
+```{r}
+renderTable({
+    Per()$df %>%
+      select(員工編號) %>%
+      unique()
+  })
+```
+
+Row {.my-1 }
+-------------------------------------
+### {.my-1 }
+```{r}
+# input = list(ber = "149")
+Be <- reactive({
+  sum_empErr %>%
+    filter(處級代號 %in% input$ber) %>%
+    group_by(部門代號,月份) %>%
+    summarize(處總加班時數 = sum(個人總加班時數),
+               處總遲到時數 = sum(個人總請假時數),
+               處總遲到次數 = sum(個人遲到次數),
+               部門平均非專案使用率 = mean(個人非專案使用率)) %>%
+    ungroup() %>% 
+    mutate(key = row_number())-> z.Be
+  # ttt %>% 
+  #   filter(bereau %in% input$ber) %>% 
+  #   mutate(key = row_number())
+})
+
+# Be = function() z.Be
+
+# ttt = merge(sum_empErr,d,by=c("DEPARTMENT_ID_LAST","DATAMONTH_LAST"),all.x = T)
+# 
+# zz = ttt %>% 
+#   filter(bereau %in% "100") %>% 
+#   group_by(DEPARTMENT_ID_LAST,DATAMONTH_LAST) %>% 
+#   mutate(key = row_number())
+  
+# save(ttt,file = "ttt.rdata")
+  # ttt %>%
+  #   filter(bereau %in% "100") %>%
+  #   group_by(DEPARTMENT_ID_LAST,DATAMONTH_LAST) %>%
+  #   mutate(key = row_number())
+```
+
+```{r}
+renderPlotly({
+  gg <- Be() %>%
+    ggplot(aes(x = 月份, y = 處總加班時數, fill = 部門代號,key=key)) +
+    geom_bar(stat ="identity") +
+    scale_fill_brewer(palette="Dark2") +
+    theme(legend.position = "none") + # 不顯示圖例說明
+    # theme(plot.background=element_rect(fill='#cc9999', color="#000000",col = "red")) + #圖的底色
+    ggtitle("處級每月累計加班時數") +
+    xlab("月份") +
+    ylab("處總加班時數")
+
+  ggplotly(gg) %>% layout(plot_bgcolor='#CBD1D4', paper_bgcolor='#CBD1D4')
+})
+```
+
+### {.my-1 }
+```{r}
+renderPlotly({
+  gg <- Be() %>%
+    ggplot(aes(x = 月份, y = 處總遲到時數, fill = 部門代號,key=key)) +
+    geom_bar(stat ="identity") +
+    scale_fill_brewer(palette="Dark2") +
+    theme(legend.position = "none") + # 不顯示圖例說明
+    ggtitle("處級每月累計請假時數") +
+    xlab("月份") +
+    ylab("處總請假次數")
+  
+  ggplotly(gg) %>% layout(plot_bgcolor='#CBD1D4', paper_bgcolor='#CBD1D4')
+})
+```
+
+### {.my-1 }
+```{r}
+renderPlotly({
+  gg <- Be() %>%
+    ggplot(aes(x = 月份, y = 處總遲到次數, fill = 部門代號,key=key)) +
+    geom_bar(stat ="identity") +
+    scale_fill_brewer(palette="Dark2") +
+    theme(legend.position = "none") + # 不顯示圖例說明
+    ggtitle("處級每月累計遲到次數") +
+    xlab("月份") +
+    ylab("處總遲到次數")
+  
+  ggplotly(gg) %>% layout(plot_bgcolor='#CBD1D4', paper_bgcolor='#CBD1D4')
+})
+```
+
+### {.my-1 }
+```{r}
+renderPlotly({
+  gg <- Be() %>% 
+    ggplot(aes(x = 月份, y= 部門平均非專案使用率 , fill = 部門代號,key=key)) + 
+    geom_line() +
+    geom_point() +
+    scale_fill_brewer(palette="Dark2") +
+    theme(legend.title = element_text(size = 5), 
+          legend.text = element_text(size = 5),
+          legend.background = element_blank()) +
+    ggtitle("各部門每月平均非專案使用率") +
+    xlab("月份")+
+    ylab("平均非專案使用率(%)")
+  
+  ggplotly(gg) %>% layout(plot_bgcolor='#CBD1D4', paper_bgcolor='#CBD1D4')
+
+})
+```
+
+```{r}
+Dep <- eventReactive(event_data("plotly_click"),{
+  i <- event_data("plotly_click")$key[1] %>% as.integer()
+  # i = 16 #133 # 171, 133, 46
+  dx <- Be()$部門代號[i]
+  px <- Be()$月份[i]
+  list(
+    部門代號 = dx, 月份 = px,
+    df = sum_empErr %>% filter(部門代號 == dx) %>% mutate(key1 = row_number()),
+    df1 = sum_empErr %>% filter(部門代號 == dx) %>% mutate(key1 = row_number()) %>% filter(月份 == px))-> z.Dep
+   
+})
+# Dep = function() {z.Dep}
+
+
+```
+
+
+Row {.my-2 }
+-------------------------------------
+### {.my-2 }
+```{r}
+renderPlotly({
+  g <- Dep()$df1 %>% 
+    ggplot(aes(x=員工編號, y= 個人總加班時數, fill = 是否加班異常,key = key1)) +
+    geom_bar(stat="identity",
+             aes(text = paste("部門代號：",部門代號,"\n",
+                              "月份：",月份))) +
+    # scale_fill_brewer(palette="Set1") +
+    scale_fill_manual(values=c(`0` = "#3B7DB8", ot = "#E31B1C")) + 
+    theme(axis.text.x = element_text(size = 6)) +
+    theme(legend.position = "none") + # 不顯示圖例說明
+    ggtitle("部門當月累計加班時數") +
+    xlab("員工編號") +
+    ylab("本月總加班時數") 
+  
+  ggplotly(g) %>% layout(plot_bgcolor='#E1E2DD', paper_bgcolor='#E1E2DD')
+  
+})
+```
+
+### {.my-2 }
+```{r}
+renderPlotly({
+  g <- Dep()$df1 %>%
+    ggplot(aes(x=員工編號, y= 個人總請假時數, fill = 是否請假異常,key = key1)) +
+    geom_bar(stat="identity",
+             aes(text = paste("部門代號：",部門代號,"\n",
+                              "月份：",月份))) +
+    scale_fill_manual(values=c(`0` = "#3B7DB8", abs = "#E31B1C")) + 
+    theme(legend.position = "none") + # 不顯示圖例說明
+    ggtitle("部門當月累計請假時數") +
+    xlab("員工編號") +
+    ylab("本月總請假時數") 
+  
+  ggplotly(g) %>% layout(plot_bgcolor='#E1E2DD', paper_bgcolor='#E1E2DD')
+
+})
+```
+
+### {.my-2 }
+```{r}
+renderPlotly({
+  g <- Dep()$df1 %>% 
+    ggplot(aes(x=員工編號, y= 個人遲到次數, fill = 是否遲到異常,key = key1)) +
+    geom_bar(stat="identity",
+             aes(text = paste("部門代號：",部門代號,"\n",
+                              "月份：",月份))) +
+    scale_fill_manual(values=c(`0` = "#3B7DB8", late = "#E31B1C")) + 
+    theme(legend.position = "none") + # 不顯示圖例說明
+    ggtitle("部門當月累計遲到次數") +
+    xlab("員工編號") +
+    ylab("本月總遲到次數")
+  
+  ggplotly(g) %>% layout(plot_bgcolor='#E1E2DD', paper_bgcolor='#E1E2DD')
+  
+})
+```
+
+### {.my-2 }
+```{r}
+renderPlotly({
+  g <- Dep()$df1 %>% 
+    ggplot(aes(x=員工編號, y= 個人非專案使用率, fill = 是否非專案使用率異常,key = key1)) +
+    geom_bar(stat="identity",
+             aes(text = paste("部門代號：",部門代號,"\n",
+                              "月份：",月份))) +
+    scale_fill_manual(values=c(`0` = "#3B7DB8", nonProj = "#E31B1C")) + 
+    theme(legend.title = element_text(size = 5), 
+          legend.text = element_text(size = 5),
+          legend.background = element_blank()) +
+    # scale_fill_discrete(name = "是否異常",
+    #                     breaks = c("0"),
+    #                     labels = c("個人","部門")) +
+    ggtitle("員工當月非專案使用率") +
+    xlab("員工編號") +
+    ylab("本月非專案使用率(%)")
+  
+  ggplotly(g) %>% layout(plot_bgcolor='#E1E2DD', paper_bgcolor='#E1E2DD')
+
+})
+```
+
+```{r}
+Per <- eventReactive(event_data("plotly_hover"),{
+  i <- event_data("plotly_hover")$key[1] %>% as.integer()
+  dx <- Dep()$df$員工編號[i]
+  list(
+    工號 = dx,
+    df = Dep()$df%>% filter(員工編號 == dx)
+  ) -> z.Per
+  
+})
+
+# Per = function() {z.Per}
+```
+
+
+Row {.my-3 }
+-------------------------------------
+### {.my-3 }
+```{r}
+# dropdownButton(
+#   renderTable({
+#     Per()$df %>%
+#       select(EMPLOYEE_ID) %>%
+#       unique()
+#   })
+#   )
+
+renderPlotly({
+  ggg <- Per()$df %>% 
+    ggplot() +
+    geom_line(aes(x = 月份,y = 個人總加班時數,group = 1,color="個人總加班時數")) +
+    geom_point(aes(x = 月份,y = 個人總加班時數,group = 1,color="個人總加班時數",
+                   text = paste("員工編號：",員工編號,"\n","部門代號：",部門代號,"\n"))) +
+    geom_line(aes(x = 月份,y = 同部門總加班時數_Q4,group = 1,color="同部門總加班時數_Q4")) +
+    geom_point(aes(x = 月份,y = 同部門總加班時數_Q4,group = 1,color="同部門總加班時數_Q4",
+                   text = paste("部門代號：",部門代號,"\n"))) +
+    geom_line(aes(x = 月份,y = 全公司總加班時數_Q4,group = 1,color="全公司總加班時數_Q4")) +
+    geom_point(aes(x = 月份,y = 全公司總加班時數_Q4,group = 1,color="全公司總加班時數_Q4")) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5)) + # 不顯示圖例說明
+    # theme(legend.title = element_text(size = 5), 
+    #       legend.text = element_text(size = 5),
+    #       legend.background = element_blank()) +
+    ggtitle("個人加班時數") +
+    xlab("月份") +
+    ylab("加班總時數")
+  
+  ggplotly(ggg) %>% layout(plot_bgcolor='#F8F9FB', paper_bgcolor='#F8F9FB')
+})
+```
+
+### {.my-3 }
+```{r}
+renderPlotly({
+  ggg <-Per()$df %>% 
+    ggplot() +
+    geom_line(aes(x = 月份,y = 個人總請假時數,group = 1,color="個人總請假時數")) +
+    geom_point(aes(x = 月份,y = 個人總請假時數,group = 1,color="個人總請假時數",
+                   text = paste("員工編號：",員工編號,"\n","部門代號：",部門代號,"\n"))) +
+    geom_line(aes(x = 月份,y = 同部門總請假時數_Q4,group = 1,color="同部門總請假時數_Q4")) +
+    geom_point(aes(x = 月份,y = 同部門總請假時數_Q4,group = 1,color="同部門總請假時數_Q4",
+                   text = paste("部門代號：",部門代號,"\n"))) +
+    geom_line(aes(x = 月份,y = 全公司總請假時數_Q4,group = 1,color="全公司總請假時數_Q4")) +
+    geom_point(aes(x = 月份,y = 全公司總請假時數_Q4,group = 1,color="全公司總請假時數_Q4")) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5)) + # 不顯示圖例說明
+    # theme(legend.title = element_text(size = 5), 
+    #       legend.text = element_text(size = 5),
+    #       legend.background = element_blank()) +
+    ggtitle("個人請假時數") +
+    xlab("月份") +
+    ylab("請假總時數")
+  
+  ggplotly(ggg) %>% layout(plot_bgcolor='#F8F9FB', paper_bgcolor='#F8F9FB')
+})
+```
+
+### {.my-3 }
+```{r}
+renderPlotly({
+  ggg <-Per()$df %>% 
+    ggplot() +
+    geom_line(aes(x = 月份,y = 個人遲到次數,group = 1,color="個人遲到次數")) +
+    geom_point(aes(x = 月份,y = 個人遲到次數,group = 1,color="個人遲到次數",
+                   text = paste("員工編號：",員工編號,"\n","部門代號：",部門代號,"\n"))) +
+    geom_line(aes(x = 月份,y = 同部門平均遲到次數,group = 2,color="同部門平均遲到次數")) +
+    geom_point(aes(x = 月份,y = 同部門平均遲到次數,group = 2,color="同部門平均遲到次數",
+                   text = paste("部門代號：",部門代號,"\n"))) +
+    theme(legend.position = "none",
+          plot.title = element_text(hjust = 0.5)) + # 不顯示圖例說明
+    # theme(legend.title = element_text(size = 5), 
+    #       legend.text = element_text(size = 5),
+    #       legend.background = element_blank()) +
+    ggtitle("個人遲到次數") +
+    xlab("月份") +
+    ylab("遲到總次數")
+  
+  ggplotly(ggg) %>% layout(plot_bgcolor='#F8F9FB', paper_bgcolor='#F8F9FB')
+})
+
+```
+
+### {.my-3 }
+```{r}
+renderPlotly({
+  ggg <-Per()$df %>% 
+    rename(個人 = 個人非專案使用率,
+           同部門_Q4 = 同部門非專案使用率_Q4,
+           全公司_Q4 = 全公司非專案使用率_Q4) %>% 
+    ggplot() +
+    geom_line(aes(x = 月份,y = 個人,color="個人")) +
+    geom_point(aes(x = 月份,y = 個人,color="個人",
+                   text = paste("員工編號：",員工編號,"\n","部門代號：",部門代號,"\n"))) +
+    geom_line(aes(x = 月份,y = 同部門_Q4,color="同部門_Q4")) +
+    geom_point(aes(x = 月份,y = 同部門_Q4,color="同部門_Q4",
+                   text = paste("部門代號：",部門代號,"\n"))) +
+    geom_line(aes(x = 月份,y = 全公司_Q4,color="全公司_Q4")) +
+    geom_point(aes(x = 月份,y = 全公司_Q4,color="全公司_Q4")) +
+    theme(legend.title = element_text(size = 10), 
+          legend.text = element_text(size = 8),
+          legend.background = element_blank(),
+          plot.title = element_text(hjust = 0.5)) +
+    # scale_fill_discrete(name = "ji3",
+    #                     breaks = c("RATIO_NONPROJ_HOURS_EMP","Nonpro_Q4"),
+    #                     labels = c("個人","部門")) +
+    ggtitle("個人非專案使用率") +
+    xlab("月份") +
+    ylab("非專案使用率")
+  
+  ggplotly(ggg) %>% layout(plot_bgcolor='#F8F9FB', paper_bgcolor='#F8F9FB')
+})
+```
+
