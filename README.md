@@ -17,6 +17,8 @@ turnover predict
 - 選用 XGBoost 進行模型訓練及預測，得到高達 86% 的準確率。
 ![image](https://user-images.githubusercontent.com/101661953/198520607-50601f08-bb5f-49ec-8b18-d50690246f25.png)
 
+## 06. 成品發表
+![image](https://user-images.githubusercontent.com/101661953/198523928-a2790b21-2e18-4a41-9146-19d7dda53a83.png)
 
 
 
